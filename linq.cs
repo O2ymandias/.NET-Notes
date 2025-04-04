@@ -99,10 +99,14 @@
         ❕There are two types of sequence: 
             Local Sequence (In memory collection):
                 L2O (LINQ To Object): Works on collections like List<T>, Array, Dictionary<K,V>.
-                L2XML (LINQ To XML): Used for querying and manipulating XML documents. 
+                L2XML (LINQ To XML): Used for querying and manipulating XML documents.
+ 
 
             Remote Sequence (External Data Sources): 
                 ✔ L2E (LINQ to Entities): Works with Entity Framework to query databases.
+
+
+                
 
     🗒️Syntax
         [1] Fluent Syntax
@@ -121,6 +125,7 @@
                 var odds = from number in numbers
                 where number % 2 == 1
                 select number;
+
     🗒️LINQ Execution
         ❕Deferred Execution
             The query execution is delayed until the sequence is iterated.
@@ -342,4 +347,21 @@
                         ❕No access to "name" anymore.
                         where noVowel.Length > 1
                         select noVowel;
+*/
+
+// * The Difference Between IEnumerable<T> and IQueryable<T>
+/*
+    [1] IEnumerable<T>
+        Operates on in-memory collections (L2O - LINQ to Objects).
+        Executes the query on the client side *after* fetching all the data.
+          Example:
+              var users = context.Users.ToList().Where(u => u.Age > 30);
+              ❕ All users are first loaded from the database, then filtered in memory.
+
+    [2] IQueryable<T>
+        Operates on remote data sources (L2E - LINQ to Entities, XML, etc.).
+        Translates the query into SQL (or appropriate format) and executes on the server.
+          Example:
+              var users = context.Users.Where(u => u.Age > 30).ToList();
+              ❕ Only users with Age > 30 are retrieved from the database.
 */
