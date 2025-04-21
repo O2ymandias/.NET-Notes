@@ -192,6 +192,7 @@
         ElementAtOrDefault()
         Single()
         SingleOrDefault()
+            If it runs against remote sequence, It will be translated to Top 2 in SQL. 
 
     🗒️Aggregate Operators (Immediate Execution)
         Returns one value.
@@ -319,6 +320,114 @@
         SkipLast() 
         TakeWhile() 
         SkipWhile() 
+
+    🗒️Join Operators
+
+        [1] Inner Join (Join() Operator)
+            ❕Fluent Syntax
+                var result = dbContext.Set<Department>()
+                .Join(
+                    dbContext.Set<Employee>(),
+                    d => d.Id,
+                    e => e.DepartmentId,
+                    (department, employee) => new
+                    {
+                        Department = department,
+                        Employee = employee
+                    }
+                );
+
+            ❕Query Expression
+                result = from department in dbContext.Set<Department>()
+                        join employee in dbContext.Set<Employee>()
+                        on department.Id equals employee.DepartmentId
+                        select new
+                        {
+                            Department = department,
+                            Employee = employee
+                        };
+
+                Or
+
+                result = from d in dbContext.Set<Department>()
+                        from e in dbContext.Set<Employee>()
+                        where d.Id == e.DepartmentId
+                        select new
+                        {
+                            Department = d,
+                            Employee = e
+                        };
+
+
+
+        [2] Left Outer Join (GroupJoin() Operator)
+            ❕Fluent Syntax
+                var result = dbContext.Set<Department>()
+                .GroupJoin(
+                    dbContext.Set<Employee>(),
+                    d => d.Id,
+                    e => e.DepartmentId,
+                    (department, employeeGroups) => new
+                    {
+                        Department = department,
+                        Employees = employeeGroups.DefaultIfEmpty()
+                    }
+                )
+                .SelectMany(
+                    x => x.Employees,
+                    (x, employee) => new
+                    {
+                        Department = x.Department,
+                        Employee = employee
+                    }
+                );
+
+                🧠How It Works
+                    GroupJoin() creates a collection of employees for each department.
+                    DefaultIfEmpty() ensures that if a department has no employees, it will still be included in the result with a null employee.
+                    SelectMany() flattens the collection of employees into a single sequence.
+
+
+            ❕Query Expression
+                var result = from department in dbContext.Set<Department>()
+                        join employee in dbContext.Set<Employee>()
+                        on department.Id equals employee.DepartmentId into employeeGroups 
+                        from employee in employeeGroups.DefaultIfEmpty()
+                        select new
+                        {
+                            Department = department,
+                            Employee = employee
+                        };
+
+                🧠How It Works
+                    join ... into
+                        creates a group join (IEnumerable of employees per department).
+
+                    from employee in employeeGroups.DefaultIfEmpty()
+                        flattens that group and ensures that each department is represented even if it has no employees.
+                        If a department has no employees, the employee variable will be null for that department.
+
+                    The result is:
+                        One row per department-employee pair
+                        Or one row per department with null employee.
+
+
+        [3] CrossJoin
+            ❕Fluent Syntax
+                var result = dbContext.Set<Department>()
+                    .SelectMany(d => dbContext.Set<Employee>().Select(e => new
+                    {
+                        Department = d,
+                        Employee = e
+                    }));
+            ❕Query Expression
+                result = from d in dbContext.Set<Department>()
+                        from e in dbContext.Set<Employee>()
+                        select new
+                        {
+                            Department = d,
+                            Employee = e
+                        };
 
 */
 

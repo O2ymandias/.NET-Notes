@@ -54,6 +54,33 @@
                         ❕Stores "Employee", "FullTimeEmployee", or "PartTimeEmployee"
                 );
 
+            ❕EF Core Mapping
+                Need to be configured
+                    protected override void OnModelCreating(ModelBuilder modelBuilder)
+                    {   
+                        [Optional]
+                        modelBuilder
+                            .Entity<Employee>()
+                            .ToTable("Employees") -> rename the table
+                            .HasDiscriminator(e => e.Disc); -> have a representation of the discriminator column
+                            .HasDiscriminator<string>("Disc"); -> rename discriminator
+
+                        .HasDiscriminator<string>("Disc"); // Optional: rename discriminator
+                        
+                        modelBuilder.Entity<FullTimeEmployee>().HasBaseType<Employee>();
+                        modelBuilder.Entity<PartTimeEmployee>().HasBaseType<Employee>();
+                    }
+
+                We still can have DbSets for each type [Optional]  
+                    public DbSet<FullTimeEmployee> FullTimeEmployees { get; set; }
+                    public DbSet<PartTimeEmployee> PartTimeEmployees { get; set; }
+                
+                Or one DbSet for the base type [Optional]
+                    public DbSet<Employee> Employees { get; set; }
+
+
+
+
         [2] Table Per Type (TPT)
             ✔ Separate tables for base and derived types.
             ✔ No NULL fields.
@@ -94,6 +121,9 @@
                     FOREIGN KEY (Id) REFERENCES Employees(Id)
                 );
 
+
+
+
         [3] Table Per Concrete Type (TPC)
             ✔ Each concrete class has its own table.
             ✔ No discriminator column or foreign keys.
@@ -129,6 +159,12 @@
                     HourlyRate DECIMAL(18,2)
                 );
 
+            ❕EF Core Mapping
+                DbSet for each concrete type
+                	public DbSet<FullTimeEmployee> FullTimeEmployees { get; set; }
+	                public DbSet<PartTimeEmployee> PartTimeEmployees { get; set; }
+
+
 
 */
 
@@ -148,49 +184,8 @@
                 public string Name { get; set; }
             }   
 
-    [2] Foreign Keys & Relationships
-        If a navigation property has a corresponding <NavigationPropertyName>Id, EF Core treats it as a foreign key.
-        
-        Example (One-to-Many):
-        public class Order
-        {
-            public int Id { get; set; } // PK
-            public int UserId { get; set; } // FK by convention
-            public User User { get; set; } // Navigation property
-        }
 
-    [3] One-to-Many Relationship
-        - A collection navigation property in one entity and a reference navigation property in the other define a one-to-many relationship.
-        Example:
-        public class User
-        {
-            public int Id { get; set; }
-            public ICollection<Order> Orders { get; set; } // One-to-Many
-        }
-
-        public class Order
-        {
-            public int Id { get; set; }
-            public int UserId { get; set; }
-            public User User { get; set; }
-        }
-
-    [4] Many-to-Many Relationship
-        - EF Core automatically creates a join table if both sides have collection navigation properties.
-        Example:
-        public class Student
-        {
-            public int Id { get; set; }
-            public ICollection<Course> Courses { get; set; }
-        }
-
-        public class Course
-        {
-            public int Id { get; set; }
-            public ICollection<Student> Students { get; set; }
-        }
-
-    [5] Nullable & Non-Nullable Properties
+    [2] Nullable & Non-Nullable Properties
 
         Reference Types (string)
             In .NET 5, all string properties are optional (NVARCHAR(MAX) NULL).
@@ -492,4 +487,262 @@
     Added 
         The entity is being tracked by EF Core but does not yet exist in the database.
         when SaveChanges() is called, it will be inserted into the database. 
+*/
+
+// * Change Tracking
+/*
+    Is responsible for tracking the state of entities retrieved from or intended to be saved to the database.
+
+    By default, tracking is enabled for queries.
+
+    If you want to improve PERFORMANCE for read-only operations, disabling change tracking for that query, will reduce memory usage and overhead.
+    Example
+        var users = context.Users.AsNoTracking().ToList();
+            users will not be tracked by change tracker, any changes made to them won't be saved to the database when calling SaveChanges().
+            This is useful for read-only scenarios where you don't need to update the entities.
+
+    If you want to disable change tracking for the entire DbContext, you can do so in the OnConfiguring method:
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder
+                .UseSqlServer("YourConnectionString")
+                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+        }
+            This will make all queries in this DbContext instance not track entities by default.
+            You can still enable tracking for specific queries using AsTracking() method.
+
+*/
+
+// * Relationships
+// 🗒️[1] One-to-Many (1:M)
+/*
+    🗒️By Convention
+        public class Blog
+        {
+            public int Id { get; set; }
+
+            ‼️Navigation Property [M]
+            public ICollection<Post> Posts { get; set; } = new HashSet<Post>()
+
+        ❕Best Practice
+            It's recommended to use ICollection for "many" navigation properties because:
+                1. It provides Add()/Remove() methods, and Count property.
+                2. It extends IEnumerable, so it's iterable (e.g., foreach loop).
+                3. It's flexible, you can use a List, HashSet, or any collection that implements ICollection.
+                4.It's recommend to initialize the collection to avoid null reference exception.
+                5. For further improvement, initialize it with a HashSet for faster lookups.
+        }
+
+        public class Post
+        {
+            public int Id { get; set; }
+
+            ‼️FK [NavigationPropertyName][PrimaryKeyName]
+            public int BlogId { get; set; } 
+                ❕Actually, EF Core can figure it out by convention and will automatically create this column in the database.
+                ❕It uses the convention [NavigationPropertyName][PrimaryKeyName] (e.g., BlogId) for the foreign key.
+                ❕It's useful in the code to have a representation of the FK, which can be useful for search/filtering.
+
+            ‼️Navigation Property [1]
+            public Blog Blog { get; set; }
+
+        }
+
+    In a one-to-many relationship, EF Core can figure out the "one" side from the navigation property, and "many" side via the FK (foreign key) property, but only if it follows naming conventions.
+
+
+    🗒️Data Annotations
+        [ForeignKey(nameof(NavigationProperty))]
+            Useful when you rename the FK and want to explicitly link it to the navigation property.
+
+
+        [InverseProperty(nameof(NavigationPropertyOnTheOtherEntity))]
+            Useful when you have multiple relationships to the same entity.
+            tells EF Core: “This navigation property on this entity matches with that navigation property on the other entity.”
+
+        Example
+            public class User
+            {
+                public int Id { get; set; }
+
+                [InverseProperty(nameof(Post.Author))]
+                public ICollection<Post> AuthoredPosts { get; set; }
+
+                [InverseProperty(nameof(Post.Editor))]
+                public ICollection<Post> EditedPosts { get; set; }
+            }
+
+            public class Post
+            {
+                public int Id { get; set; }
+
+                ❕You can apply [ForeignKey] on the FK property
+                [ForeignKey(nameof(Author))]
+                public int AuthorId { get; set; }
+
+                public User Author { get; set; }
+
+                ❕You can also apply [ForeignKey] on the navigation property
+                [ForeignKey(nameof(EditorId))]
+                public User Editor { get; set; }
+
+                public int EditorId { get; set; }
+            }
+
+
+    🗒️Fluent API Or Entity Type Configuration [Recommended]
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+		    modelBuilder
+			.Entity<Employee>()
+			.HasOne(e => e.Department)
+			.WithMany(d => d.Employees)
+			.HasForeignKey(e => e.DepartmentId)
+			.OnDelete(DeleteBehavior.Cascade);
+        }
+
+
+*/
+
+
+// 🗒️[2] Many-to-Many (M:M)
+/*
+    🗒️By Convention
+        public class Student
+        {
+            public int Id { get; set; }
+            public string Name { get; set; }
+
+            public ICollection<Course> Courses { get; set; } = new HashSet<Course>();
+        } 
+
+        public class Course
+        {
+            public int Id { get; set; }
+            public string Title { get; set; }
+
+            public ICollection<Student> Students { get; set; } = new HashSet<Student>();
+        }
+
+        EF Core will automatically generate a shadow join table (a table that exists in the database, but not as a C# class).
+        This table will link StudentId <-> CourseId using a composite primary key.
+
+        ❕When to Represent the Join Table as a Real Class?
+            When you need to store extra data in the relationship like: EnrolledAt, Grade, Status, etc.
+
+            public class Enrollment
+            {
+                public int StudentId { get; set; } 
+                public Student Student { get; set; } -> NV(1) 
+
+                public int CourseId { get; set; }
+                public Course Course { get; set; } -> NV(1)
+
+                public DateTime EnrolledAt { get; set; } -> Extra field
+            }
+
+            public class Student
+            {
+                public int Id { get; set; }
+                public string Name { get; set; }
+
+                public ICollection<Enrollment> Enrollments { get; set; } = new HashSet<Enrollment>() -> NV(M)
+            }
+
+            public class Course
+            {
+                public int Id { get; set; }
+                public string Title { get; set; }
+
+                public ICollection<Enrollment> Enrollments { get; set; } = = new HashSet<Enrollment>() -> NV(M)
+            }
+
+            So the Many-to-Many relationship is split into two One-to-Many (1:M) relationships:
+                Student (1) ---> (M) Enrollment (M) <--- (1) Course
+
+
+
+    🗒️By Fluent API Or Entity Type Configuration
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder
+                .Entity<Student>()
+                .HasMany(s => s.Courses)
+                .WithMany(c => c.Students)
+        }
+
+        ❕In case we want a representation of the shadow table in C# code
+            protected override void OnModelCreating(ModelBuilder modelBuilder)
+            {
+                Configure composite primary key (MUST)
+                    modelBuilder.Entity<Enrollment>()
+                        .HasKey(e => new { e.StudentId, e.CourseId });
+
+                Configure relationship: Enrollment -> Student (many-to-one)
+                    modelBuilder.Entity<Enrollment>()
+                        .HasOne(e => e.Student)
+                        .WithMany(s => s.Enrollments)
+                        .HasForeignKey(e => e.StudentId)
+                        .IsRequired()
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                Configure relationship: Enrollment -> Course (many-to-one)
+                    modelBuilder.Entity<Enrollment>()
+                        .HasOne(e => e.Course)
+                        .WithMany(c => c.Enrollments)
+                        .HasForeignKey(e => e.CourseId)
+                        .IsRequired()
+                        .OnDelete(DeleteBehavior.Cascade);
+            }
+*/
+
+// * Loading Navigation Property Strategies
+/*
+    By default, EF Core will not automatically load navigation properties (related entities).
+    You must explicitly include them using one of the following methods:
+
+        [1] Eager Loading (using Include)
+            Loads related entities as part of the initial query.
+            ❌ Always performs JOINs even if the related data isn't needed.
+
+            Example:
+                var blog = context.Blogs
+                    .Include(b => b.Posts)
+                    .ThenInclude(p => p.Author)
+                    .FirstOrDefault(b => b.BlogId == 1);
+
+        [2] Lazy Loading
+            EF Core loads the navigation property automatically when it's first accessed. not when the entity is initially loaded.
+            ❌ More round-trips to the database.
+                Each navigation property access can trigger a separate SQL query "N+1 query problem"
+                    If you're iterating through 100 authors and accessing their books, you'll get 101 database queries!
+
+            Requirements:
+                1. Install Microsoft.EntityFrameworkCore.Proxies
+                2. Enable proxies in DbContext:
+                    optionsBuilder.UseLazyLoadingProxies();
+                3. Mark Entities as 'public'
+                    You still can use 'internal' BUT mark the assembly with [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
+                    
+                4. Mark navigation properties as 'virtual'
+
+        [3] Explicit Loading
+            Manually load the related data when needed.
+            ❌ More round-trips to the database.
+                Each related entity or collection must be loaded with a separate query, which can affect performance.
+
+            Example:
+                var blog = context.Blogs.FirstOrDefault(b => b.BlogId == 1);
+
+                For collection navigation property (M)
+                    context.Entry(blog)
+                        .Collection(b => b.Posts)
+                        .Load();
+
+                For reference navigation property (1)
+                    context.Entry(blog)
+                        .Reference(b => b.Author)
+                        .Load();
+
+            
 */
