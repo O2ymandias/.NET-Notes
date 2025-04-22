@@ -474,3 +474,66 @@
               var users = context.Users.Where(u => u.Age > 30).ToList();
               ❕ Only users with Age > 30 are retrieved from the database.
 */
+
+// * Mapping View 
+/*
+    [1] Create Empty Migration
+        protected override void Up(MigrationBuilder migrationBuilder)
+		{
+			migrationBuilder.Sql(@"
+                CREATE VIEW vw_AllDepartmentsWithItsEmployees AS
+                SELECT e.Id AS EmployeeId, e.Name AS EmployeeName, d.Id AS DepartmentId, d.Name AS DepartmentName
+                FROM Departments d LEFT OUTER JOIN Employees e
+				ON d.Id = e.DepartmentId
+			");
+		}
+		protected override void Down(MigrationBuilder migrationBuilder)
+		{
+			migrationBuilder.Sql("DROP VIEW vw_AllDepartmentsWithItsEmployees");
+		}
+
+    [2] Updating the Database
+        Update-Database -Context YourDbContextName
+
+
+    [3] Create Model Class
+        ❕ Properties MUST be the same as the SQL view columns names. or can be configured via Fluent API.
+        public class AllDepartmentsWithItsEmployees
+        {
+            public int EmpId { get; set; }
+            public string EmpName { get; set; }
+            public int DeptId { get; set; }
+            public string DeptName { get; set; }
+        }
+
+    [4] Configure It in DbContext
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<AllDepartmentsWithItsEmployees>(etb =>
+            {
+                etb.HasNoKey();
+                ❕Important: Views don't have primary keys
+
+                etb.ToView("vw_AllDepartmentsWithItsEmployees");
+                ❕ Must match the SQL view name if it has been created first at the database.
+
+                ❕In case The SQL view columns names are different from the model class properties names, you can configure them using Fluent API.
+
+                    etb.Property(x => x.DeptId).HasColumnName("DepartmentId");
+
+                    etb.Property(x => x.DeptName).HasColumnName("DepartmentName");
+
+                    etb.Property(x => x.EmpId).HasColumnName("EmployeeId");
+
+                    etb.Property(x => x.EmpName).HasColumnName("EmployeeName");
+            });
+
+            base.OnModelCreating(modelBuilder);
+        }
+        public DbSet<AllDepartmentsWithItsEmployees> AllDepartmentsWithItsEmployees { get; set; }
+
+
+    [5] Querying the View
+        var result = context.AllDepartmentsWithItsEmployees.ToList();
+
+*/
