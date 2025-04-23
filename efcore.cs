@@ -489,27 +489,50 @@
         when SaveChanges() is called, it will be inserted into the database. 
 */
 
+
 // * Change Tracking
 /*
-    Is responsible for tracking the state of entities retrieved from or intended to be saved to the database.
+    Change Tracker:
+        EF Core includes a Change Tracker, which is responsible for keeping track of the state of entities 
+        retrieved from the database or intended to be saved to it.
 
-    By default, tracking is enabled for queries.
+    It tracks operations like:
+        Added
+        Modified
+        Deleted
+        Unchanged
+        Detached
 
-    If you want to improve PERFORMANCE for read-only operations, disabling change tracking for that query, will reduce memory usage and overhead.
-    Example
-        var users = context.Users.AsNoTracking().ToList();
-            users will not be tracked by change tracker, any changes made to them won't be saved to the database when calling SaveChanges().
-            This is useful for read-only scenarios where you don't need to update the entities.
+    By default, EF Core tracks all entities returned from queries so it can detect and persist changes.
 
-    If you want to disable change tracking for the entire DbContext, you can do so in the OnConfiguring method:
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            optionsBuilder
-                .UseSqlServer("YourConnectionString")
-                .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
-        }
-            This will make all queries in this DbContext instance not track entities by default.
-            You can still enable tracking for specific queries using AsTracking() method.
+
+    🗒️WHY DISABLE CHANGE TRACKING?
+        In scenarios where you only need to read data, tracking adds unnecessary overhead 
+        (memory usage and processing time).
+
+
+    🗒️You can improve performance in read-only scenarios by disabling tracking.
+
+        Option [1]: Disable tracking on a per-query basis
+            Use `.AsNoTracking()` to disable tracking for a specific query:
+                var users = context.Users.AsNoTracking().ToList();
+
+                `users` will not be tracked by the Change Tracker.
+                Any changes made to them will not be saved to the database.
+                Ideal for read-only queries.
+
+        Option [2]: Disable tracking globally (DbContext level)
+            You can set the tracking behavior in the `OnConfiguring` method of your `DbContext`:
+                protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+                {
+                    optionsBuilder
+                        .UseSqlServer("ConnectionString")
+                        .UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+                }
+
+            This will disable tracking by default for all queries in the DbContext.
+            You can still opt-in to tracking for specific queries using `.AsTracking()`:
+                var trackedUsers = context.Users.AsTracking().ToList();
 
 */
 
@@ -745,4 +768,89 @@
                         .Load();
 
             
+*/
+
+// * Mapping View 
+/*
+    [1] Create Empty Migration
+        protected override void Up(MigrationBuilder migrationBuilder)
+		{
+			migrationBuilder.Sql(@"
+                CREATE VIEW vw_AllDepartmentsWithItsEmployees AS
+                SELECT e.Id AS EmployeeId, e.Name AS EmployeeName, d.Id AS DepartmentId, d.Name AS DepartmentName
+                FROM Departments d LEFT OUTER JOIN Employees e
+				ON d.Id = e.DepartmentId
+			");
+		}
+		protected override void Down(MigrationBuilder migrationBuilder)
+		{
+			migrationBuilder.Sql("DROP VIEW vw_AllDepartmentsWithItsEmployees");
+		}
+
+    [2] Updating the Database
+        Update-Database -Context YourDbContextName
+
+
+    [3] Create Model Class
+        ❕ Properties MUST be the same as the SQL view columns names. or can be configured via Fluent API.
+        public class AllDepartmentsWithItsEmployees
+        {
+            public int EmpId { get; set; }
+            public string EmpName { get; set; }
+            public int DeptId { get; set; }
+            public string DeptName { get; set; }
+        }
+
+    [4] Configure It in DbContext
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.Entity<AllDepartmentsWithItsEmployees>(etb =>
+            {
+                etb.HasNoKey();
+                ❕Important: Views don't have primary keys
+
+                etb.ToView("vw_AllDepartmentsWithItsEmployees");
+                ❕ Must match the SQL view name if it has been created first at the database.
+
+                ❕In case The SQL view columns names are different from the model class properties names, you can configure them using Fluent API.
+
+                    etb.Property(x => x.DeptId).HasColumnName("DepartmentId");
+
+                    etb.Property(x => x.DeptName).HasColumnName("DepartmentName");
+
+                    etb.Property(x => x.EmpId).HasColumnName("EmployeeId");
+
+                    etb.Property(x => x.EmpName).HasColumnName("EmployeeName");
+            });
+
+            base.OnModelCreating(modelBuilder);
+        }
+        public DbSet<AllDepartmentsWithItsEmployees> AllDepartmentsWithItsEmployees { get; set; }
+
+
+    [5] Querying the View
+        var result = context.AllDepartmentsWithItsEmployees.ToList();
+
+*/
+
+// * Raw SQL Queries
+/*
+    [1] SELECT -> (FromSQLRaw, FromSqlInterpolated)
+        var employees = context.Employees.FromSqlRaw("SELECT * FROM Employees").ToList();
+
+        var employees = context.Employees.FromSqlInterpolated($"SELECT * FROM Employees WHERE Name = {name}").ToList();
+
+        var employees = context.Employees.FromSqlRaw("SELECT * FROM Employees WHERE Name = {0}", name).ToList();
+
+    [2] DML (INSERT, UPDATE, DELETE) -> (ExecuteSqlRaw, ExecuteSqlInterpolated)
+        context.Database.ExecuteSqlRaw("INSERT INTO Employees (Name) VALUES ('John Doe')");
+
+        context.Database.ExecuteSqlInterpolated($"UPDATE Employees SET Name = {name} WHERE Id = {id}");
+
+        context.Database.ExecuteSqlRaw("DELETE FROM Employees WHERE Id = {0}", id);
+
+    [3] Stored Procedures
+        context.Database.ExecuteSqlRaw("EXEC UpdateEmployeeSalary @EmployeeId, @NewSalary", new SqlParameter("@EmployeeId", employeeId), new SqlParameter("@NewSalary", newSalary));
+
+        Or Use EF Core Power Tools to scaffold the stored procedure into a C# method.
 */
