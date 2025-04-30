@@ -704,3 +704,31 @@
         -> Manually update only the properties that changed.
 
 */
+
+
+// * Anti-Forgery Token
+/*
+    ASP.NET Core provides protection against Cross-Site Request Forgery (CSRF) attacks using anti-forgery tokens.
+
+    -> When a form is rendered (typically using tag helpers):
+        1. ASP.NET Core generates an anti-forgery token pair:
+           - A hidden input field named "__RequestVerificationToken" is added to the form.
+           - A corresponding token is stored in a cookie (".AspNetCore.Antiforgery...").
+
+        2. These tokens are generated per user session and vary by application instance.
+
+    -> When the form is submitted:
+        1. The browser sends both tokens:
+           - One from the hidden form field (request body).
+           - One from the cookie (request headers).
+
+        2. The `[ValidateAntiForgeryToken]` attribute on the controller action triggers the validation.
+
+        3. ASP.NET Core checks:
+           - If the form token and cookie token exist.
+           - If they match and are valid for the current user/session.
+
+        4. If validation passes, the request is processed. Otherwise, a 400 Bad Request is returned.
+
+    ❕This mechanism ensures that malicious sites cannot submit forms on behalf of authenticated users.
+*/
