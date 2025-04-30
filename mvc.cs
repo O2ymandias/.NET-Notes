@@ -93,17 +93,36 @@
 
 // * Dependency Injection (DI)
 /*
-    🗒️ What is Dependency Injection?
+    🗒️What is Dependency Injection?
         A design pattern used to implement IoC (Inversion of Control).
         It allows a class to receive its dependencies from an external source rather than creating them itself.
 
-    🗒️ Why use Dependency Injection?
-        - Promotes loose coupling between classes.
-        - Enhances testability (easier to mock dependencies).
-        - Improves code maintainability and readability.
+    🗒️Registered Built-in Services:
+        [1] IConfiguration
+            When the application starts, the ASP.NET Core hosting system does a lot of setup behind the scenes.
+            Specifically:
+                1. It creates a ConfigurationBuilder.
+                2. It loads configuration sources like:
+                    -> appsettings.json
+                    -> appsettings.{Environment}.json
+                    -> Environment variables
+                    -> Command-line arguments
 
-    🗒️ Register Built-in Services
+                3. It builds an IConfiguration object.
+                4. It registers the final IConfiguration instance into the DI container automatically.
 
+
+        [2] IHostEnvironment
+            Represents the environment in which the application is running (Development, Staging, Production).
+            It provides information about the environment and allows you to configure services accordingly.
+
+        [3] ILogger
+            It allows to log messages, warnings, errors, and other information.
+
+
+    
+
+    🗒️Register Built-in Services
         [1] AddControllers() 
             → Registers core MVC services (for API applications):
                 1. Routing:
@@ -138,22 +157,39 @@
                 Includes everything from AddControllers():
                     Routing, Model Binding, Validation, Filters, DI.
 
-                Plus adds:
-                    1. Razor View Engine:
-                        Enables `.cshtml` file rendering using Razor syntax.
-                        Used to generate dynamic HTML for browser-based apps.
+                Additionally Adds:
+                    1. AddViews()
+                        Registers View-Related Services
 
-                    2. View Helpers:
-                        Provides `HtmlHelper`, `UrlHelper`, `ViewData`, `ViewBag`, etc.
+                    2. AddRazorViewEngine()
+                        Registers the Razor View Engine (which compiles .cshtml files)
 
-                    3. Layouts and Partial Views:
-                        Supports view composition via `_Layout.cshtml`, partial views, etc.
 
             → Enables support for Controllers and Views.
 
         [3] AddRazorPages()
             → Registers Razor Pages services
             → Ideal for building web applications using Razor Pages.
+
+
+        [4] AddMvc()
+            → Registers all MVC services (Controllers + Views + Razor Pages).
+            → It’s a combination of AddControllersWithViews() and AddRazorPages().
+            → ❌ Not recommended for new projects; use AddControllersWithViews() or AddRazorPages() instead.
+
+        [5] AddDbContext<TContext>()
+            → Registers the DbContext and its associated DbContextOptions into the Dependency Injection (DI) container with a scoped lifetime by default.
+            → Allows you to inject the DbContext into your controllers or services.
+
+            → Example:
+                services.AddDbContext<MyDbContext>(options =>
+                    options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+
+                public class MyDbContext : DbContext
+                {
+                    public MyDbContext(DbContextOptions<MyDbContext> options) : base(options) { }
+                }
+
 
 */
 
@@ -178,6 +214,14 @@
                     Status codes
                     Redirects
                     Custom content
+
+            2. ViewResult:
+                Returns a view (HTML) to the client.
+                Used in MVC applications with Razor views.
+                Example:
+                    return new ViewResult(); ❕If no view name is specified, it looks for a view with the same name as the action method.
+                    return View();
+                    return View("ViewName");
 
             2. JsonResult:
                 Returns JSON-formatted data.
@@ -264,4 +308,399 @@
                 4. ForbidResult/Forbid()
                 5. StatusCodeResult/StatusCode()
                 6. OkResult/Ok()
+*/
+
+// * Model Binding
+/*
+    The process by which ASP.NET Core automatically maps HTTP request data (like form fields, query strings, route data, and headers) to action method parameters
+
+    🗒️How Model Binding Works:
+        When a request is routed to a controller action, ASP.NET Core looks at the request data in this order:
+            [1] Form data 
+            [2] Route data
+            [3] Query string
+
+        The model binder parses the data source and matches it to the parameters of the controller action method.
+            Simple Types
+                If the action parameter is a simple type (int, string, bool, ...), The model binder directly maps the value from the request.
+                public IActionResult Get(int id) -> /get?id=13
+
+            Complex Types
+                If the action parameter is a complex type (class or struct), the model binder will create an instance of that type and populate its properties.
+                public IActionResult Get(User user) -> /get?Name=John&Age=30 || /get?user.Name=John&user.Age=30
+
+            Collections
+                If the action parameter is a collection (List, Array), the model binder will create a collection and populate it with values from the request.
+                public IActionResult Get(List<int> ids) -> /get?ids=1&ids=2&ids=3 || /get?ids[0]=1&ids[1]=2&ids[2]=3
+
+        The model binder will stop at the first source that provides a value
+            For example: if both form data and route data contain values for the same property, the form data will be used.
+
+
+    🗒️Explicit Binding Attributes
+        [FromForm] —> bind from form fields
+        [FromRoute] —> bind from route data
+        [FromQuery] —> bind from query string
+
+        [FromBody] —> bind from the request body
+            By default, Model Binder won't bind complex types from the request body unless [FromBody] is specified.
+*/
+
+// * Middlewares
+/*
+    Built-in Middleware:
+        1. UseStaticFiles()
+            Serves static files (CSS, JS, images) from the wwwroot folder.
+            Should be used after UseRouting() but before UseAuthorization().
+
+            In ASP.NET Core newer versions, MapStaticAssets() was introduced
+                Replaces UseStaticFiles() for a more integrated approach with endpoint routing.
+                Automatically serves static files from wwwroot using endpoint definitions.
+                Works with .WithStaticAssets() to register static routes alongside controller routes.
+            
+                app.MapStaticAssets(); ❕Registers static file serving middleware
+                app.MapControllerRoute(
+                    name: "default",
+                    pattern: "{controller=Home}/{action=Index}/{id?}")
+                .WithStaticAssets();  ❕Merges controller and static asset routes
+
+
+        2. UseRouting()
+            This activates the routing system.
+            Matches the incoming URL path to an endpoint.
+            Does NOT execute the matched endpoint (it only identifies which one matches).
+
+        3. MapControllerRoute()
+            Defines a route pattern for matching incoming URLs.
+            It maps the URL to a specific controller and action method.
+
+
+
+
+
+
+*/
+
+// * Razor View
+/*
+    Razor View is essentially a (.cshtml) file used to render HTML content with embedded C# code.
+    For each razor view, ASP.NET Core creates a class at runtime that inherits from RazorPage<TModel> and has access to:
+        1. Model: The data passed from the controller to the view.
+        2. ViewData: Dictionary for passing data from the controller to the view.
+        3. ViewBag: Dynamic wrapper around ViewData.
+        4. TempData: Dictionary for passing data between requests.
+        5. Html: HTML helper methods for generating HTML elements.
+
+    If @model is not specified, the generated class will inherit from RazorPage<dynamic>.
+
+    Folder Structure
+        Views/
+        ├── Home/
+        │   └── Index.cshtml
+        ├── Shared/
+        │   └── _Layout.cshtml
+        ├── _ViewStart.cshtml
+        └── _ViewImports.cshtml
+
+        _Layout.cshtml:
+            The main layout that defines the overall structure of the HTML page.
+            One project can have multiple layouts.
+            @RenderBody()
+                It’s replaced by the content of the child view.
+                Only renders content not defined in a @section.
+                One per layout file.
+
+            @RenderSection()
+                Used to define named sections that are optional or required in child views.
+
+            Example:
+                <html>
+                    <head>
+                        <title>@ViewData["Title"]</title>
+                    </head>
+                    <body>
+                        @RenderBody()
+                        @RenderSection("Scripts", required: false)
+                    </body>
+                </html>
+
+
+
+        _ViewStart.cshtml:
+            A special file that runs before any view in the folder.
+            One project has EXACTLY one _ViewStart.cshtml file.
+            It can set the layout for all views.
+            Example:
+                @{
+                    Layout = "_Layout.cshtml";
+                }
+                This means all views  will use _Layout.cshtml as their layout unless specified otherwise.
+
+        _ViewImports.cshtml:
+            Contains namespaces for all views.
+    
+
+    HTML Helpers:
+        1. Loosely types
+            @Html.TextBox()
+                Generates a text input field.
+                Example:
+                    @Html.TextBox("Name", Model.Name, new { @class = "form-control" })
+
+        2. Strongly typed
+            @Html.TextBoxFor(): (For) -> @model
+                Generates a text input field for a specific model property.
+                Will consider the model attributes like ([DataType()])
+                
+                Example:
+                    @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+
+
+
+    Tag Helpers:
+        [1] asp-for
+            -> Binds a model property to an HTML element.
+
+            -> Auto-generates attributes (name, id, value, type) based on the bound model property.
+
+            -> Applies model metadata automatically ([DisplayName("Full Name")]).
+
+            -> Validation:
+                Auto-generates client-side validation attributes like: data-val="true", data-val-required="true" and others based on model attributes such as [Required], [StringLength], [Range].
+                
+                ❕Client-Side Validation Dependencies:
+                    ASP.NET Core uses "jQuery Validation Unobtrusive" for client-side form validation.
+                        jQuery Validation Unobtrusive ➔ depends on jQuery Validation ➔ depends on jQuery.
+
+                    That's why these scripts are added to the _Layout.cshtml file:
+                        <script src="~/lib/jquery/dist/jquery.min.js"></script>
+                        @await RenderSectionAsync("Scripts", required: false)
+
+                        @section Scripts {
+                            <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+                            <script src="~/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
+                        }
+
+            Example:
+                class Person
+                {
+                    [Required(ErrorMessage = "The Name field is required.")]
+                    public string Name { get; set; }
+                }
+
+                <input asp-for="Name"/> Will generate:
+                    <input
+                        type="text"
+                        id="Name" 
+                        name="Name" 
+                        value="@(Model.Name)" 
+                        data-val="true" 
+                        data-val-required="The Name field is required." 
+                    />
+
+
+        [2] asp-controller & asp-action & asp-route-parameter
+            Purpose: Generates a URL to a specific controller action with route parameter.
+            Example:
+                <a
+                    asp-controller="Home"
+                    asp-action="Details"
+                    asp-route-id="1"
+                >
+                    Details"
+                </a> 
+                This will generate: <a href="/Home/Details/1">Home</a>
+
+        [3] asp-validation-for
+            Purpose: Integrates client-side validation with the model property.
+            Example: (MUST be span tag)
+                <span asp-validation-for="Name"></span>
+
+        [4] asp-validation-summary
+            Displays a summary of validation errors for the entire model.
+            MUST be div tag
+            Example:
+                <div asp-validation-summary="None/ModelOnly/All" class="text-danger"></div>
+                Options:
+                    None:
+                        -> No validation summary is displayed (default).
+
+                    ModelOnly:
+                        -> Displays only model-level errors (Custom errors with empty key "").
+                            ModelState.AddModelError("", "...")
+                        -> Ignores property-level errors.
+
+                    All:
+                        -> Displays both:
+                            Model-level errors (ModelState.AddModelError("", "..."))
+                            Property-level errors
+                                1. ModelState.AddModelError("PropertyName", "...")
+                                2. Errors triggered by validation attributes like [Required], [StringLength].
+
+                ❕Custom error display behavior:
+                    ModelState.AddModelError("PropertyName", "Error Message")
+                        -> Shows in <span asp-validation-for="PropertyName">
+                        -> Also appears in the summary only if asp-validation-summary="All"
+
+                    ModelState.AddModelError("", "Error Message")
+                        -> Appears in the summary if asp-validation-summary="ModelOnly" or "All"
+
+
+*/
+
+// * 3 Tiers Architecture
+/*
+    🗒️3-Tier Architecture
+        [1] Presentation Layer (UI)
+            Responsible for: Displaying data to the user and handling user interactions.
+            Examples: ASP.NET MVC, Web API, Desktop (WPF), Mobile (Xamarin), Blazor (SPA).
+
+        [2] Business Logic Layer (BLL)
+            Responsible for: Containing the core business rules and logic of the application.
+            Function: Processes data from the DAL and prepares it for the UI.
+            Typically a: Class Library.
+
+        [3] Data Access Layer (DAL)
+            Responsible for: Interacting with the database or any data source.
+            Function: Handles CRUD operations and data retrieval.
+            Examples: Entity Framework Core, Dapper.
+*/
+
+// * Repository Pattern
+/*
+    🗒️Repository Pattern
+        A design pattern that provides an abstraction layer over data access logic.
+        It separates the data access code from the business logic, making it easier to manage and test.
+
+        Benefits:
+            1. Separation of Concerns: Keeps data access logic separate from business logic.
+            2. Testability, Reusability
+
+        Example:
+            public interface IDepartmentRepository
+            {
+                Task<Department> GetByIdAsync(int id);
+                Task<IEnumerable<Department>> GetAllAsync();
+                Task AddAsync(Department department);
+                Task UpdateAsync(Department department);
+                Task DeleteAsync(int id);
+            }
+
+            public class DepartmentRepository : IDepartmentRepository
+            {
+                private readonly MyDbContext _context;
+
+                public DepartmentRepository(MyDbContext context)
+                {
+                    _context = context;
+                }
+
+                public async Task<Department> GetByIdAsync(int id)
+                {
+                    ❕Using FirstOrDefault()
+                        Always sends a query to the database.
+                        Useful for flexible conditions (filtering by non-primary key fields).
+                        Example:
+                            var department = _context.Departments.Local.FirstOrDefault(d => d.Id == id);
+                            if (department is not null) return department;
+                            return await _context.Departments.FirstOrDefaultAsync(d => d.Id == id);
+
+                    ❕Using Find()
+                        First checks DbContext's Change Tracker (in-memory entities).
+                        If found in memory, returns immediately (no database query).
+                        If not found, queries the database by primary key (Id).
+                        More efficient when searching by primary key.
+                        Only works for primary key lookups.
+                        Example:
+                            return await _context.Departments.FindAsync(id);
+                }
+
+            }
+*/
+
+// * [HttpGet] [HttpPost] Pattern
+/*
+    Pattern used in ASP.NET Core MVC to handle form operations.
+    [HttpGet]: Fetch data, display the form.
+    [HttpPost]: Validate and process the form submission.
+
+    Example:
+        [HttpGet]
+        public IActionResult Update(int id)
+        {
+            var department = _departmentRepo.GetById(id);
+            if (department is null) return NotFound();
+            return View(department);
+        }
+
+        [HttpPost]
+        public IActionResult Update(Department department)
+        {
+            if (!ModelState.IsValid) return View(department);
+            
+            _departmentRepo.Update(department);
+            return RedirectToAction(nameof(Index));
+        }
+
+    ❕Important EF Core Behavior:
+        Each HTTP request (GET or POST) typically uses a new instance of DbContext (In case of Scoped Lifetime "Default").
+
+        In the [HttpGet] request, the DbContext fetches the entity from the database, and it is tracked by the DbContext instance "By Default".
+
+        In the [HttpPost] request, the form data is bound to a new Department object created by the model binder. But this entity:
+            1. Was not fetched via the current DbContext (By the previous GET request NOT the current POST request).
+            2. Is not tracked.
+            3.Therefore, its EntityState is Detached.
+
+        EF Core behavior when call Update() method
+            1. If the entity is already being tracked
+                -> All properties are marked as Modified, even if they haven't changed.
+                -> An UPDATE statement will be generated based on the PK
+                    UPDATE [TableName]
+                    SET [Column1] = @value1, [Column2] = @value2
+                    WHERE [PK] = @pkValue
+
+            2. If the entity is not being tracked
+                -> It attaches it to the dbContext.
+                -> All properties are marked as Modified.
+                -> An UPDATE statement will be generated based on the PK.
+
+                -> If the Primary Key doesn't match any record in the database:
+                    EF Core will still generate and execute an UPDATE statement.
+                    But the UPDATE affects zero rows because the WHERE [PK] = @pkValue condition doesn't match anything.
+
+
+        In ASP.NET Core, DbContext usually has a Scoped lifetime (one per request).
+        Each HTTP request (GET or POST) uses a **different DbContext instance**.
+
+        [HttpGet]
+            -> The DbContext fetches the entity.
+            -> EF Core **tracks** this entity (EntityState = Unchanged by default).
+
+        [HttpPost]
+            -> The model binder creates a new `Department` object.
+            -> This object is:
+                1. Not tracked (was not fetched in the current request).
+                2. Treated as a new "detached" instance by EF Core.
+                3. Has `EntityState = Detached` by default.
+
+        EF Core Update() Behavior:
+            1. If entity is already tracked:
+                -> EF Core marks all properties as Modified (even if unchanged).
+                -> An UPDATE is issued:
+                    UPDATE [Table]
+                    SET [Column1] = @value1, ...
+                    WHERE [PK] = @pk
+
+            2. If entity is not tracked:
+                -> EF Core **attaches** it and marks all properties as Modified.
+                -> UPDATE is still issued using the PK.
+                -> If PK doesn't match any record:
+                    The UPDATE executes but affects **zero rows**.
+
+    ✔ Best Practices:
+        -> Avoid using `Update()` on detached entities to prevent unintended updates.
+        -> Fetch the original entity in the [HttpPost] method.
+        -> Manually update only the properties that changed.
+
 */

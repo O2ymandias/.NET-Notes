@@ -486,7 +486,8 @@
 
     Added 
         The entity is being tracked by EF Core but does not yet exist in the database.
-        when SaveChanges() is called, it will be inserted into the database. 
+        when SaveChanges() is called, it will be inserted into the database.
+                
 */
 
 
