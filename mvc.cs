@@ -705,7 +705,6 @@
 
 */
 
-
 // * Anti-Forgery Token
 /*
     ASP.NET Core provides protection against Cross-Site Request Forgery (CSRF) attacks using anti-forgery tokens.
