@@ -441,19 +441,20 @@
     
 
     HTML Helpers:
-        1. Loosely types
-            @Html.TextBox()
-                Generates a text input field.
-                Example:
-                    @Html.TextBox("Name", Model.Name, new { @class = "form-control" })
+        [1] DisplayNameFor()
+            Displays the display name of a model property.
+            Example:
+                class Person
+                {
+                    [DisplayName("Full Name")]
+                    public string Name { get; set; }
+                }
+                @Html.DisplayNameFor(m => m.Name) ➔ "Full Name"
 
-        2. Strongly typed
-            @Html.TextBoxFor(): (For) -> @model
-                Generates a text input field for a specific model property.
-                Will consider the model attributes like ([DataType()])
-                
-                Example:
-                    @Html.TextBoxFor(m => m.Name, new { @class = "form-control" })
+        [2] DisplayFor()
+            Displays the value of a model property.
+            Example:
+                @Html.DisplayFor(m => m.Name) ➔ "John Doe"
 
 
 
@@ -467,19 +468,6 @@
 
             -> Validation:
                 Auto-generates client-side validation attributes like: data-val="true", data-val-required="true" and others based on model attributes such as [Required], [StringLength], [Range].
-                
-                ❕Client-Side Validation Dependencies:
-                    ASP.NET Core uses "jQuery Validation Unobtrusive" for client-side form validation.
-                        jQuery Validation Unobtrusive ➔ depends on jQuery Validation ➔ depends on jQuery.
-
-                    That's why these scripts are added to the _Layout.cshtml file:
-                        <script src="~/lib/jquery/dist/jquery.min.js"></script>
-                        @await RenderSectionAsync("Scripts", required: false)
-
-                        @section Scripts {
-                            <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
-                            <script src="~/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
-                        }
 
             Example:
                 class Person
@@ -618,6 +606,43 @@
             }
 */
 
+// * Generic Repository Pattern
+/*
+    🗒️Generic Repository Pattern
+        A variation of the Repository Pattern that uses generics to create a single repository interface and implementation for multiple entities.
+
+        Benefits:
+            1. Code Reusability: One generic repository can handle multiple entities.
+            2. Flexibility: Can work with any entity type without creating separate repositories.
+
+        Example:
+            public interface IGenericRepository<TEntity> where TEntity : class
+            {
+                Task<IEnumerable<TEntity>> GetAllAsync();
+                Task<TEntity> GetByIdAsync(int id);
+                Task AddAsync(TEntity entity);
+                Task UpdateAsync(TEntity entity);
+                Task DeleteAsync(int id);
+            }
+
+            public class GenericRepository<TEntity> : IGenericRepository<TEntity> where TEntity : class "It's better to use a ModelBase class that all models inherit from"
+            {
+                private readonly MyDbContext _context;
+
+                public GenericRepository(MyDbContext context)
+                {
+                    _context = context;
+                }
+
+                public async Task<TEntity> GetByIdAsync(int id)
+                {
+                    return await _dbSet.FindAsync(id);
+                }
+
+                ...
+            }
+*/
+
 // * [HttpGet] [HttpPost] Pattern
 /*
     Pattern used in ASP.NET Core MVC to handle form operations.
@@ -730,4 +755,50 @@
         4. If validation passes, the request is processed. Otherwise, a 400 Bad Request is returned.
 
     ❕This mechanism ensures that malicious sites cannot submit forms on behalf of authenticated users.
+*/
+
+// * Client Side Validation
+/*
+    🗒️Client-Side Validation Dependencies:
+        ASP.NET Core uses **jQuery Validation Unobtrusive** for client-side form validation. This depends on:
+            1. jQuery Validation
+            2. jQuery
+
+        Therefore, these scripts are typically added in _Layout.cshtml:
+            <script src="~/lib/jquery/dist/jquery.min.js"></script>
+            @await RenderSectionAsync("Scripts", required: false)
+                `required: false` means the "Scripts" section is optional.
+                    If a view does **not** define @section Scripts { ... }, the layout will still render without errors.
+
+                `required: true` means the section is **mandatory**.
+                    All views using this layout **must** define the "Scripts" section, or an error will occur at runtime.
+
+        ❕To use jQuery Validation Unobtrusive in a Razor view, include:
+            @section Scripts {
+                <partial name="_ValidationScriptsPartial" />
+            }
+
+        This partial view (_ValidationScriptsPartial.cshtml) includes:
+            <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+            <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+
+    🗒️How It Works:
+        When a form is rendered, ASP.NET Core generates validation attributes based on model data annotations.
+
+        Example:
+            [Required(ErrorMessage = "Name is required.")]
+            public string Name { get; set; }
+
+        Generates HTML like:
+            <input asp-for="Name" required data-val="true" data-val-required="Name is required." />
+
+        These attributes:
+            `data-val`: Enables validation
+            `data-val-required`: Contains the error message
+
+        The jQuery Unobtrusive Validation library reads these and performs client-side validation.
+        If validation fails, the form is not submitted and the user receives immediate feedback.
+
+    ❕Server-Side Validation:
+        Still necessary for security and data integrity since client-side validation can be bypassed.
 */
