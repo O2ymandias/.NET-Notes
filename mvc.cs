@@ -802,3 +802,74 @@
     ❕Server-Side Validation:
         Still necessary for security and data integrity since client-side validation can be bypassed.
 */
+
+// * Partial Views
+/*
+    Partial views are reusable Razor components that can be rendered within other views.
+    They help break down complex UIs into smaller, maintainable, and reusable parts.
+
+    A Partial View:
+        -> Does not have a layout page.
+        -> Cannot be accessed directly via a URL.
+        -> Is typically used for UI components like forms, menus, lists, etc.
+
+    🗒️How to Create and Use a Partial View:
+        1. Create a Razor view file with the `.cshtml` extension.
+           Suggested location: `Views/Shared` or the relevant controller folder.
+           Naming convention: Start with an underscore `_PartialViewName.cshtml`.
+
+        2. To render the partial view inside another view:
+            Use the Tag Helper syntax: 
+               <partial name="_PartialViewName" />
+
+            If passing a model:
+               <partial name="_PartialViewName" model="Model.SomeProperty" />
+*/
+
+// * Sending Data From Action To A View
+/*
+    🗒️Sending Data From Action To A View:
+
+        [1] Model
+            -> Used to send the **main structured data** from the controller to the view.
+            -> It is recommended to use a strongly typed model by specifying the model type in the view(@model MyModel).
+
+            Example:
+                public IActionResult Index()
+                {
+                    var model = new MyModel { Name = "John" };
+                    return View(model); // Pass the model to the view
+                }
+
+                @model MyModel // Specify the model type.
+
+        [2] ViewData:
+            -> Used to send **additional data**:
+                1. From action to view
+                2. From view to layout
+                3. From partial view to main view
+
+            -> Type: ViewDataDictionary ViewData { get; set; }; -> Implements IDictionary<string, object?>.
+
+            -> ViewDataDictionary has a property called Model that contains the passed model from the controller to the view.
+
+            -> Requires Type Casting and enforces type safety.
+                When setting data in ViewData, you can use any type (IDictionary<string, object?>)
+                When retrieving data from ViewData, you need to cast it.
+                Example:
+                    string? title = ViewData["Title"] as string; // Type casting needed
+
+        [3] ViewBag:
+            -> A dynamic wrapper around ViewData (Both ViewData and ViewBag are accessing the same dictionary).
+
+            -> Allows you to use dynamic properties instead of string keys.
+
+            -> Type: dynamic ViewBag { get; set; };
+
+            -> Does not require type casting and does not enforce type safety.
+                When setting data in ViewBag, you can use any type (dynamic).
+                When retrieving data from ViewBag, you do not need to cast it.
+                Example:
+                    ViewBag.Title = "Home Page"; // No type casting needed
+
+*/
