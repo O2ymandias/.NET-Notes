@@ -873,3 +873,93 @@
                     ViewBag.Title = "Home Page"; // No type casting needed
 
 */
+
+// * Sending Data between requests [TempData]
+/*
+    🗒️TempData Overview:
+        -> Used to send data between requests (e.g., from one action to another).
+        -> Data is stored in:
+            1. Client via Cookies (default)
+            2. Server via Session (if configured)
+                AddControllerWithViews().AddSessionStateTempDataProvider()
+
+        -> Type: TempDataDictionary TempData { get; set; }; -> Implements IDictionary<string, object?>.
+
+        -> The stored data persists until:
+            1. It is read.
+            2. The session ends (20 minutes from the last interaction "Default").
+            3. The data is explicitly removed.
+
+            Example:
+                TempData["Message"] = "Data saved successfully!";
+                return RedirectToAction("Index");
+
+                In the Index action, you can access it using:
+                string message = TempData["Message"] as string; // Type casting needed
+
+
+    🗒️Methods:
+        1. Keep()
+            -> Marks the key/keys for retention.
+            Example:
+                TempData.Keep("Message"); // Keeps the "Message" for the next request.
+
+        2. Peek()
+            -> Retrieves the value without marking key for deletion.
+            Example:
+                string message = TempData.Peek("Message") as string; // Type casting needed
+
+        3. Remove()
+            -> Marks the key for deletion.
+            Example:
+                TempData.Remove("Message"); // Removes the "Message" from TempData
+
+        TempData["key"]
+            -> Key will be marked for deletion
+*/
+
+// * Sending Data Between Requests [TempData]
+/*
+    🗒️ TempData Overview:
+        -> Used to persist data between two requests (commonly during redirects).
+        -> Backing store options:
+            1. Client-side via Cookies (default).
+            2. Server-side via Session (if configured):
+               services.AddControllersWithViews()
+                       .AddSessionStateTempDataProvider();
+               app.UseSession(); // Required in middleware
+
+        -> Declaration:
+            TempData is of type TempDataDictionary and implements IDictionary<string, object?>.
+
+        -> Lifespan:
+            1. Data is removed once it is read.
+            2. Or if session ends (default is 20 minutes of inactivity).
+            3. Or if explicitly removed.
+
+        Example Usage:
+            ❕In Create action
+                TempData["Message"] = "Data saved successfully!";
+                return RedirectToAction("Index");
+
+            ❕In Index action
+                var message = TempData["Message"] as string;
+
+    🗒️TempData Methods:
+        1. Keep()
+            -> Marks (all keys / specified key )in the dictionary for retention.
+            Example:
+                TempData.Keep("Message");
+
+        2. Peek()
+            -> Reads the value *without* marking it for deletion.
+            Example:
+                string message = TempData.Peek("Message") as string;
+
+        3. Remove()
+            -> Explicitly removes a key-value from TempData.
+            Example:
+                TempData.Remove("Message");
+
+        ❕Access via TempData["key"] -> marks the key for deletion after the current request.
+*/
