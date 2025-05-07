@@ -97,6 +97,37 @@
         A design pattern used to implement IoC (Inversion of Control).
         It allows a class to receive its dependencies from an external source rather than creating them itself.
 
+    🗒️DI Lifecycle
+        [1] Transient
+            Created: every time they are requested.
+            Use Cases: lightweight (not expensive to create), stateless services (don't hold state).
+            Example:
+                1. Helper service
+                    services.AddTransient<IFormatter, JsonFormatter>();
+                    public class JsonFormatter : IFormatter
+                    {
+                        public string Format(object data) => JsonSerializer.Serialize(data);
+                    }
+                2. Mapping service (AutoMapper)
+
+
+        [2] Scoped
+            Created: Once per request (same instance shared within the request).
+            Use Cases: 
+                1. Services that need to share state within a request (DbContext)
+                2. Repositories service.
+
+        [3] Singleton
+            Created: Once per the application lifetime (As long as the app running on the server).
+            Use Cases:
+                1. Services that maintain global state
+                2. Services that require heavy initialization.
+                3. Caching service.
+                4. Logging service.
+                5. AutoMapper service.
+
+            ❕A singleton service should NOT depend on a scoped service, because the singleton outlives the scoped service and could access a disposed object, causing runtime errors.
+
     🗒️Registered Built-in Services:
         [1] IConfiguration
             When the application starts, the ASP.NET Core hosting system does a lot of setup behind the scenes.
@@ -643,6 +674,70 @@
             }
 */
 
+// * Unit of Work Pattern
+/*
+    Manages multiple repositories and commits all changes as a single transaction.
+
+    Benefits:
+        [1] Transaction Management —> Ensures all changes are committed or rolled back together.
+        [2] Scalability —> Dynamically provides repositories when needed.
+
+    Interface:
+        public interface IUnitOfWork : IDisposable
+        {
+            IGenericRepository<TEntity> Repository<TEntity>() where TEntity : ModelBase;
+            Task<int> SaveAsync();
+        }
+
+    Implementation:
+        public class UnitOfWork : IUnitOfWork
+        {
+            private readonly MyDbContext _context;
+            private readonly Dictionary<Type, object> _repositories = new();
+            ❕Without Dictionary every call creates a new repository instance, which:
+                1. Wastes memory.
+                2. Breaks the idea of a single shared repository per entity during a unit of work (bad if you want to track entity state consistently).
+
+            public UnitOfWork(MyDbContext context)
+            {
+                _context = context;
+            }
+
+            public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class
+            {
+                var type = typeof(TEntity);
+                if (_repos.TryGetValue(type, out var value))
+                    return (IGenericRepo<TEntity>)value;
+
+                var repo = new GenericRepo<TEntity>(dbContext);
+                _repos[type] = repo;
+                return repo;
+            }
+
+            public async Task<int> SaveAsync() => await _context.SaveChangesAsync();
+
+            public void Dispose() => _context.Dispose();
+        }
+
+    Example
+        public class UserService
+        {
+            private readonly IUnitOfWork _unitOfWork;
+
+            public UserService(IUnitOfWork unitOfWork)
+            {
+                _unitOfWork = unitOfWork;
+            }
+
+            public async Task AddUserAsync(User user)
+            {
+                var userRepo = _unitOfWork.Repository<User>();
+                await userRepo.AddAsync(user);
+                await _unitOfWork.SaveAsync();
+            }
+        }
+*/
+
 // * [HttpGet] [HttpPost] Pattern
 /*
     Pattern used in ASP.NET Core MVC to handle form operations.
@@ -962,4 +1057,63 @@
                 TempData.Remove("Message");
 
         ❕Access via TempData["key"] -> marks the key for deletion after the current request.
+*/
+
+// * AutoMapper
+/*
+    AutoMapper is a library that helps map properties from one object type to another, typically used to map between DTOs (Data Transfer Objects) and domain models.
+
+    [1] Define Your Models
+        public class Source
+        {
+            public string Name { get; set; }
+            public int Age { get; set; }
+        }
+
+        public class Destination
+        {
+            public string FullName { get; set; }
+            public int Age { get; set; }
+        }
+
+    [2] Create a Mapping Profile
+        public class MappingProfile : Profile
+        {
+            public MappingProfile()
+            {
+                CreateMap<Source, Destination>()
+                    .ForMember(
+                        dest => dest.FullName,
+                        opt => opt.MapFrom(src => src.Name)
+                    )
+                    .ReverseMap(); 
+                        -> Enables mapping back from Destination to Source
+                        -> Use only when two-way mapping is needed.
+            }
+        }
+
+    [3] Register AutoMapper in the DI Container
+        builder.Services.AddAutoMapper(typeof(MappingProfile));
+
+        Alternatively, if using multiple profiles in an assembly:
+            builder.Services.AddAutoMapper(Assembly.GetExecutingAssembly());
+
+    [4] Inject and Use AutoMapper
+        public class MyService
+        {
+            private readonly IMapper _mapper;
+
+            public MyService(IMapper mapper)
+            {
+                _mapper = mapper;
+            }
+
+            public void MapObjects()
+            {
+                var source = new Source { Name = "John", Age = 30 };
+                var destination = _mapper.Map<Destination>(source);
+
+                Console.WriteLine(destination.FullName); // Output: John
+            }
+        }
 */
