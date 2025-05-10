@@ -651,8 +651,8 @@
             {
                 Task<IEnumerable<TEntity>> GetAllAsync();
                 Task<TEntity> GetByIdAsync(int id);
-                Task AddAsync(TEntity entity);
-                Task UpdateAsync(TEntity entity);
+                void Add(TEntity entity);
+                void Update(TEntity entity);
                 Task DeleteAsync(int id);
             }
 
@@ -663,11 +663,6 @@
                 public GenericRepository(MyDbContext context)
                 {
                     _context = context;
-                }
-
-                public async Task<TEntity> GetByIdAsync(int id)
-                {
-                    return await _dbSet.FindAsync(id);
                 }
 
                 ...
@@ -683,7 +678,7 @@
         [2] Scalability —> Dynamically provides repositories when needed.
 
     Interface:
-        public interface IUnitOfWork : IDisposable
+        public interface IUnitOfWork : IAsyncDisposable
         {
             IGenericRepository<TEntity> Repository<TEntity>() where TEntity : ModelBase;
             Task<int> SaveAsync();
@@ -706,8 +701,8 @@
             public IGenericRepository<TEntity> Repository<TEntity>() where TEntity : class
             {
                 var type = typeof(TEntity);
-                if (_repos.TryGetValue(type, out var value))
-                    return (IGenericRepo<TEntity>)value;
+                if (_repos.TryGetValue(type, out var storedRepo))
+                    return (IGenericRepo<TEntity>)storedRepo;
 
                 var repo = new GenericRepo<TEntity>(dbContext);
                 _repos[type] = repo;
@@ -716,7 +711,16 @@
 
             public async Task<int> SaveAsync() => await _context.SaveChangesAsync();
 
-            public void Dispose() => _context.Dispose();
+            public ValueTask DisposeAsync()
+            {
+                dbContext.DisposeAsync();
+                    Ensures that the database connection and any unmanaged resources used by the dbContext are released.
+
+		        GC.SuppressFinalize(this);
+                    This tells the Garbage Collector (GC) not to call the finalizer (destructor) for this object.
+                    Why? Because the cleanup has already been done manually via Dispose().
+                    This improves performance and avoids unnecessary overhead.
+            }
         }
 
     Example
@@ -1116,4 +1120,134 @@
                 Console.WriteLine(destination.FullName); // Output: John
             }
         }
+*/
+
+// * File Manager
+/*
+
+    public interface IFileManager
+    {
+        Task<string?> UploadFileAsync(IFormFile? file, string folder);
+        void DeleteFile(string? filePath);
+    }
+
+
+    public class FileManager(IWebHostEnvironment env) : IFileManager
+    {
+        private static readonly string[] _allowedExtensions = [".jpg", "jpeg", ".png"];
+
+        public async Task<string?> UploadFileAsync(IFormFile? file, string folderName)
+        {
+            if (file is null || file.Length == 0) return null;
+
+            var extension = Path.GetExtension(file.FileName)?.Trim().ToLower();
+            if (string.IsNullOrEmpty(extension) || !_allowedExtensions.Contains(extension)) return null;
+
+            var folderPath = Path.Combine(env.WebRootPath, folderName);
+            Directory.CreateDirectory(folderPath);
+
+            var fileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(folderPath, fileName);
+
+            using var stream = new FileStream(filePath, FileMode.Create);
+            await file.CopyToAsync(stream);
+
+            return Path.Combine(folderName, fileName).Replace("\\", "/");
+        }
+
+        public void DeleteFile(string? filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+
+            var path = Path.Combine(env.WebRootPath, filePath);
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+*/
+
+// * Form Encoding Type
+/*
+    enctype: An attribute of the <form> element that specifies how form data should be encoded when sent to the server.
+
+    [1] application/x-www-form-urlencoded (default)
+        -> Data is sent as key-value pairs.
+        -> Characters are URL-encoded (spaces become "+", "&" becomes "%26").
+        -> Format: key1=value1&key2=value2
+        -> Best for standard forms with text inputs.
+
+    [2] multipart/form-data
+        -> Required when uploading files.
+        -> Can send binary data and preserves file content types.
+        -> Used with <input type="file">.
+
+    [3] text/plain
+        -> Rarely used; mostly for debugging.
+        -> Data is sent as plain text.
+        -> No URL encoding is applied.
+*/
+
+// * Identity Module Overview
+/*
+    🗒️Model Flow (Custom Application):
+        Employees [Database Table]
+            ↓
+        Employee [Model Class]
+            ↓
+        EmployeeService [Service Layer]
+            ↓
+        EmployeeRepository [Repository Layer]
+            ↓
+        AppDbContext : DbContext
+
+    🗒️ASP.NET Core Identity Flow:
+        AspNetUsers [Identity Table]
+            ↓
+        IdentityUser [Built-in Model Class]
+            ↓
+        UserManager<IdentityUser> [Service]
+            ↓
+        UserStore<IdentityUser> [Repository]
+            ↓
+        AppIdentityDbContext : IdentityDbContext<IdentityUser>
+
+    🗒️ Setup Steps:
+        [1] Install Identity Package:
+            -> Microsoft.AspNetCore.Identity.EntityFrameworkCore
+
+        [2] Create AppIdentityDbContext and Inherit from IdentityDbContext
+            public class AppIdentityDbContext : IdentityDbContext<AppUser> // Extending IdentityUser
+            {
+                public AppIdentityDbContext(DbContextOptions<AppIdentityDbContext> options)
+                    : base(options) { }
+
+                protected override void OnModelCreating(ModelBuilder builder)
+                {
+                    base.OnModelCreating(builder); // Required to apply default Identity configuration
+
+                    builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly()); 
+                }
+            }
+
+        [3] Register Core Identity Services
+            services
+                .AddIdentity<AppUser, IdentityRole>()
+                .AddEntityFrameworkStores<AppIdentityDbContext>();
+
+            AddIdentity<TUser, TRole>():
+                -> Registers core Identity services:
+                    UserManager<TUser>
+                    RoleManager<TRole>
+                    SignInManager<TUser>
+                -> Also adds services for:
+                    Password validation & hashing
+                    User and role validation
+                    Claims & token providers
+
+            AddEntityFrameworkStores<TContext>():
+                -> Registers EF-based implementations of:
+                    IUserStore<TUser>
+                    IRoleStore<TRole>
+                -> These are (Dependencies) of UserManager and RoleManager 
 */
