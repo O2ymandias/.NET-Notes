@@ -1122,51 +1122,6 @@
         }
 */
 
-// * File Manager
-/*
-
-    public interface IFileManager
-    {
-        Task<string?> UploadFileAsync(IFormFile? file, string folder);
-        void DeleteFile(string? filePath);
-    }
-
-
-    public class FileManager(IWebHostEnvironment env) : IFileManager
-    {
-        private static readonly string[] _allowedExtensions = [".jpg", "jpeg", ".png"];
-
-        public async Task<string?> UploadFileAsync(IFormFile? file, string folderName)
-        {
-            if (file is null || file.Length == 0) return null;
-
-            var extension = Path.GetExtension(file.FileName)?.Trim().ToLower();
-            if (string.IsNullOrEmpty(extension) || !_allowedExtensions.Contains(extension)) return null;
-
-            var folderPath = Path.Combine(env.WebRootPath, folderName);
-            Directory.CreateDirectory(folderPath);
-
-            var fileName = $"{Guid.NewGuid()}{extension}";
-            var filePath = Path.Combine(folderPath, fileName);
-
-            using var stream = new FileStream(filePath, FileMode.Create);
-            await file.CopyToAsync(stream);
-
-            return Path.Combine(folderName, fileName).Replace("\\", "/");
-        }
-
-        public void DeleteFile(string? filePath)
-        {
-            if (string.IsNullOrWhiteSpace(filePath)) return;
-
-            var path = Path.Combine(env.WebRootPath, filePath);
-            if (File.Exists(path))
-                File.Delete(path);
-        }
-    }
-
-*/
-
 // * Form Encoding Type
 /*
     enctype: An attribute of the <form> element that specifies how form data should be encoded when sent to the server.
@@ -1233,21 +1188,269 @@
         [3] Register Core Identity Services
             services
                 .AddIdentity<AppUser, IdentityRole>()
-                .AddEntityFrameworkStores<AppIdentityDbContext>();
+                .AddEntityFrameworkStores<AppIdentityDbContext>()
+                .AddDefaultTokenProviders();
 
-            AddIdentity<TUser, TRole>():
+            ❕AddIdentity<TUser, TRole>():
                 -> Registers core Identity services:
-                    UserManager<TUser>
-                    RoleManager<TRole>
-                    SignInManager<TUser>
-                -> Also adds services for:
-                    Password validation & hashing
-                    User and role validation
-                    Claims & token providers
+                    1. UserManager<TUser>
+                    2. RoleManager<TRole>
+                    3. SignInManager<TUser>
 
-            AddEntityFrameworkStores<TContext>():
+                -> Adds Support Services:
+                    1. Password validation & hashing
+                    2. User and role validation
+                    3. Claims generations
+
+                -> Internally calls AddAuthentication() and configures:
+                    1. Default authentication scheme "Identity.Application"
+                        services.AddAuthentication(options =>
+                        {
+                            options.DefaultAuthenticateScheme = IdentityConstants.ApplicationScheme;
+                            options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
+                            options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+                        })
+
+                    2. Cookie-based authentication handlers:
+                        -> Identity.Application
+                            .AddCookie(IdentityConstants.ApplicationScheme, o =>
+                            {
+                                o.LoginPath = new PathString("/Account/Login");
+                                o.Events = new CookieAuthenticationEvents
+                                {
+                                    OnValidatePrincipal = SecurityStampValidator.ValidatePrincipalAsync
+                                };
+                            })
+
+                        -> Identity.External
+                        -> Identity.TwoFactorRememberMe
+                        -> Identity.TwoFactorUserId
+                        Authentications Cookies doesn't require calling AddDefaultTokenProviders()
+                            
+
+            ❕AddEntityFrameworkStores<TContext>():
                 -> Registers EF-based implementations of:
                     IUserStore<TUser>
                     IRoleStore<TRole>
-                -> These are (Dependencies) of UserManager and RoleManager 
+                -> These are Required (Dependencies) of UserManager and RoleManager 
+
+
+            ❕AddDefaultTokenProviders():
+                Adds the default token providers used to generate tokens for
+                    1. reset passwords,
+	                2. change email and change telephone number operations,
+                    3. two factor authentication token generation.
+
+
+    🗒️Customizing the default configurations of AddIdentity()
+        AddIdentity<IdentityUser, IdentityRole>(options =>
+        {
+            User Settings
+                options.User.RequireUniqueEmail = true;
+
+            Password Settings
+                options.Password.RequireDigit = true;
+                options.Password.RequireLowercase = true;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireNonAlphanumeric = true;
+                options.Password.RequiredLength = 6;
+
+            LockOut Settings
+                options.Lockout.AllowedForNewUsers = true;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+                options.Lockout.MaxFailedAccessAttempts = 5;
+        })
+
+    🗒️Customizing Default Authentication Scheme "Identity.Application"
+		services.ConfigureApplicationCookie(config =>
+		{
+			config.LoginPath = "/Auth/SignIn";
+			config.AccessDeniedPath = "/Auth/Forbidden";
+			config.ExpireTimeSpan = TimeSpan.FromDays(14);
+		});
+
+
+    🗒️Customizing Defaults For AddAuthentication()
+        services.AddAuthentication(options =>
+		{
+			options.DefaultAuthenticateScheme = IdentityConstants.ApplicationScheme; // "Identity.Application"
+			options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme; // "Identity.Application"
+		});
+
+    🗒️[Authorize]
+        [1] AuthenticationSchemes = "Identity.Application" || "Bearer",
+            No need to specify if it has been configured as default at AddAuthentication()
+
+        Roles = "Admin,User"
+            Only allow users in the "Admin" or "User" roles
+            If the user is not in either role, they will be redirected to the AccessDeniedPath
+       
+*/
+
+// * File Manager Service
+/*
+
+    public interface IFileManager
+    {
+        Task<string?> UploadFileAsync(IFormFile? file, string folder);
+        void DeleteFile(string? filePath);
+    }
+
+
+    public class FileManager(IWebHostEnvironment env) : IFileManager
+    {
+        private static readonly string[] _allowedExtensions = [".jpg", "jpeg", ".png"];
+
+        public async Task<string?> UploadFileAsync(IFormFile? file, string folderName)
+        {
+            if (file is null || file.Length == 0) return null;
+
+            var extension = Path.GetExtension(file.FileName)?.Trim().ToLower();
+            if (string.IsNullOrEmpty(extension) || !_allowedExtensions.Contains(extension)) return null;
+
+            var folderPath = Path.Combine(env.WebRootPath, folderName);
+            Directory.CreateDirectory(folderPath);
+
+            var fileName = $"{Guid.NewGuid()}{extension}";
+            var filePath = Path.Combine(folderPath, fileName);
+
+            using var stream = new FileStream(filePath, FileMode.Create);
+            await file.CopyToAsync(stream);
+
+            return Path.Combine(folderName, fileName).Replace("\\", "/");
+        }
+
+        public void DeleteFile(string? filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)) return;
+
+            var path = Path.Combine(env.WebRootPath, filePath);
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+    }
+
+*/
+
+// * Email Sender Service
+/*
+    [1] Interface
+        public interface IEmailSender
+        {
+            Task SendEmailAsync(Email email);
+        }
+
+    [2] Model
+        public class Email
+        {
+            public List<string> To { get; set; } = [];
+            public string Subject { get; set; }
+            public string? Body { get; set; }
+            public List<IFormFile>? Attachments { get; set; }
+            public bool IsHtml { get; set; } = false;
+        }
+
+    [3] Configuration Class
+        public class EmailSettings
+        {
+            public string SmtpHost { get; set; }
+            public int SmtpPort { get; set; }
+            public string DisplayName { get; set; }
+            public string SenderEmail { get; set; }
+            public string Password { get; set; }
+        }
+
+    [4] Implementation
+        -> Install MimeKit Package
+        -> Install MailKit Package
+
+        public class EmailSender
+        (IOptions<EmailSettings> emailSetting,
+        ILogger<EmailSender> logger)
+        : IEmailSender
+        {
+            private readonly EmailSettings _emailSettings = emailSetting.Value;
+
+            public async Task SendEmailAsync(Email email)
+            {
+                var mimeMessage = PrepareMimeMessage(email);
+                await SendMimeMessageAsync(mimeMessage);
+            }
+
+            private MimeMessage PrepareMimeMessage(Email email)
+            {
+                var mimeMessage = new MimeMessage()
+                {
+                    Sender = MailboxAddress.Parse(_emailSettings.SenderEmail),
+                    Subject = email.Subject
+                };
+
+                mimeMessage.From.Add(new MailboxAddress(_emailSettings.DisplayName, _emailSettings.SenderEmail));
+                foreach (var recipient in email.To)
+                    mimeMessage.To.Add(MailboxAddress.Parse(recipient));
+
+                var body = new BodyBuilder();
+                if (email.IsHtml)
+                    body.HtmlBody =
+                        @$"
+                            <p style='padding:1rem;'>
+                                {email.Body}
+                            </p>
+                        ";
+                else
+                    body.TextBody = email.Body;
+
+                mimeMessage.Body = body.ToMessageBody();
+
+
+                if (email.Attachments is not null)
+                {
+                    byte[] bytes;
+
+                    foreach (var file in email.Attachments)
+                    {
+                        if (file.Length == 0) continue;
+
+                        using var memoryStream = new MemoryStream();
+                        file.CopyTo(memoryStream);
+                        bytes = memoryStream.ToArray();
+
+                        body.Attachments.Add(file.FileName, bytes, ContentType.Parse(file.ContentType));
+                    }
+                }
+
+                return mimeMessage;
+            }
+
+            private async Task SendMimeMessageAsync(MimeMessage mimeMessage)
+            {
+                using var smtpClient = new SmtpClient();
+                try
+                {
+                    await smtpClient.ConnectAsync(_emailSettings.SmtpHost, _emailSettings.SmtpPort, SecureSocketOptions.StartTls);
+                    await smtpClient.AuthenticateAsync(_emailSettings.SenderEmail, _emailSettings.Password);
+                    await smtpClient.SendAsync(mimeMessage);
+
+                    var recipients = string.Join(", ", mimeMessage.To.Select(t => t.ToString()));
+                    logger.LogInformation("Email sent to {Recipients}", recipients);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError("Error While Sending Email: {Message}", ex.Message);
+                    throw;
+                }
+
+                finally
+                {
+                    await smtpClient.DisconnectAsync(true);
+                }
+            }
+        }
+
+    [5] Registering
+		services.Configure<EmailSettings>(config.GetSection("EmailSettings"));
+            -> Whenever I request an object of IOptions<EmailSettings>, it should bind the properties of that object to the EmailSettings section from appsettings.json."
+            
+		services.AddTransient<IEmailSender, EmailSender>();
+
 */
