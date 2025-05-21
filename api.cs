@@ -183,6 +183,19 @@
                     await context.Response.WriteAsJsonAsync(response);
                 });
 
+            Using UseStatusCodePages Middleware:
+                app.UseStatusCodePages(async context =>
+                {
+                    if (context.HttpContext.Response.StatusCode == StatusCodes.Status404NotFound)
+                    {
+                        var response = new ApiErrorResponse(
+                            StatusCodes.Status404NotFound,
+                            $"The requested endpoint '{context.HttpContext.Request.Path}' was not found.");
+
+                        await context.HttpContext.Response.WriteAsJsonAsync(response);
+                    }
+                });
+
     🗒️Bad Request (400)
         [1] Manually returned
             Example:
