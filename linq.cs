@@ -431,7 +431,7 @@
 
 */
 
-// (let & into) Query Expression
+// * (let & into) Query Expression
 /*
     [1] let
         allows you to create a temporary variable inside a query

@@ -475,3 +475,156 @@
         }
 
 */
+
+// * Filters
+/*
+    Allow code to run( before or after) specific stages in the request processing pipeline.
+
+    ASPNetCore provides built-in filters to handle tasks such as:
+        Authorization, preventing access to resources a user isn't authorized for.
+        Response caching, short-circuiting the request pipeline to return a cached response.
+
+    🗒️ Types Of Filters
+        [1] Authorization
+            Interface -> IAuthorizationFilter, IAsyncAuthorizationFilter
+            Executed -> First in the filter pipeline.
+            Determine whether the user is authorized for the request
+            Short-circuit the pipeline if the request is not authorized.
+
+            Example:
+                public class CustomAuthorizationFilter : IAuthorizationFilter
+                {
+                    public void OnAuthorization(AuthorizationFilterContext context)
+                    {
+                    }
+                }
+
+        [2] Resource
+            Interface -> IResourceFilter, IAsyncResourceFilter
+            Executed -> After Authorization
+            Useful for caching or short-circuiting requests.
+            Example:
+                public class CustomResourceFilter : IResourceFilter
+                {
+                    public void OnResourceExecuting(ResourceExecutingContext context)
+                    {
+                        Runs code before the rest of the filter pipeline (runs before model binding)
+                    }
+
+                    public void OnResourceExecuted(ResourceExecutedContext context)
+                    {
+                       Runs code after the rest of the pipeline has completed.
+                    }
+                }
+
+        [3] Action
+            Interface -> IActionFilter, IAsyncActionFilter
+            Executed -> Immediately before and after an action method is called.
+            Can change the arguments passed into an action.
+            Can change the result returned from the action.
+
+            Example:
+                public class CustomActionFilter : IActionFilter
+                {
+                    public void OnActionExecuting(ActionExecutingContext context)
+                    {
+                        Before action is executed and after the model binding is complete.
+                    }
+
+                    public void OnActionExecuted(ActionExecutedContext context)
+                    {
+                        After action is executed
+                    }
+                }
+
+        [4] Result
+            Interface -> IResultFilter, IAsyncResultFilter
+            Executed -> Immediately before and after the execution of action results.
+            Run only when the action method executes successfully.
+            Example:
+                public class CustomResultFilter : IResultFilter
+                {
+                    public void OnResultExecuting(ResultExecutingContext context)
+                    {
+                        Before result is executed
+                    }
+
+                    public void OnResultExecuted(ResultExecutedContext context)
+                    {
+                        After result is executed
+                    }
+                }
+
+        [5] Exception
+            Interface -> IExceptionFilter, IAsyncExceptionFilter
+            Executed -> On unhandled exceptions
+            Example:
+                public class GlobalExceptionFilter : IExceptionFilter
+                {
+                    public void OnException(ExceptionContext context)
+                    {
+                        // log and handle
+                        context.Result = new JsonResult(new { error = "Something went wrong" });
+                    }
+                }
+
+    🗒️ Order of Execution
+        Last Middleware then:
+            1. Authorization filters
+            2. Resource filters
+            3. Model binding
+            4. Action filters
+            5. Action method
+            6. Result filters
+            .. Exception filters (if exception occurs)
+
+    🗒️ Registering Filters
+        [1] Globally (applies to all controllers/actions)
+            services.AddControllersWithViews(options =>
+            {
+                options.Filters.Add<CustomFilter>();
+            });
+
+        [2] At Controller or Action Level
+            ❕Option 1: Using filter as attribute (No DI)
+                [CustomFilter]
+                public class HomeController : Controller
+                {
+                    [CustomFilter]
+                    public IActionResult Index() => View();
+                }
+
+            ❕Option 2: Using ServiceFilter (DI)
+                Resolves dependencies from the DI container.
+                You must register the filter in DI container.
+                You can't pass constructor parameters when consuming the filter (only what DI knows how to inject).
+                Best when the filter needs services injected, but not when you need to pass dynamic values.
+
+                Example
+                    [ServiceFilter(typeof(CustomFilter))]
+                    public IActionResult Index() => View();
+
+
+            ❕Option 3: Using TypeFilter (DI)
+                Resolves dependencies from the DI container.
+                You don't have to register the filter in DI container
+                    ASP.NET Core will:
+                        Inject registered services
+                        Pass extra constructor parameters from Arguments array
+
+                [TypeFilter(typeof(CustomFilter), Arguments = new object[] { "MyParamValue" })]
+                public IActionResult Index() => View();
+*/
+
+// * Assess Token And Refresh Token
+/*    
+    Assess Token
+        -> A short-lived token (e.g., 15 minutes) used to access protected resources.
+        -> Sent in the Authorization header as a Bearer token.
+        -> If expired, the client must request a new token using the refresh token.
+
+    Refresh Token
+        -> A long-lived token (e.g., 7 days) used to obtain a new assess token without re-authentication.
+        -> Sent with the request cookies.
+        -> If expired, the user must log in again to get a new assess and refresh token.
+*/
