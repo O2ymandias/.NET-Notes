@@ -371,111 +371,6 @@
 */
 
 
-// * Specification Design Pattern
-/*
-    Allow you to build the query dynamically.
-
-    [1] Interface
-        public interface ISpecification<TEntity> where TEntity : ModelBase
-        {
-            Expression<Func<TEntity, bool>>? Criteria { get; set; }
-            List<Expression<Func<TEntity, object>>> Includes { get; set; }
-            ...
-        }
-
-    [2] Base Specifications
-        public class BaseSpecification<TEntity> : ISpecification<TEntity> where TEntity : ModelBase
-        {
-            public BaseSpecification()
-            {
-            }
-            public BaseSpecification(Expression<Func<TEntity, bool>> criteria)
-            {
-                Criteria = criteria;
-            }
-
-            public Expression<Func<TEntity, bool>>? Criteria { get; set; }
-            public List<Expression<Func<TEntity, object>>> Includes { get; set; } = [];
-
-            protected void AddIncludeExpr(Expression<Func<TEntity, object>> includeExpr) => Includes.Add(includeExpr);
-        }
-
-    [3] On Demand Specification
-        public class ProductSpecsWithRelatedData : BaseSpecification<Product>
-        {
-            // Multiple Products
-            public ProductSpecsWithRelatedData() :
-                base()
-            {
-                AddIncludeExpr(p => p.Brand);
-                AddIncludeExpr(p => p.Category);
-            }
-
-            // Single Product
-            public ProductSpecsWithRelatedData(int id) :
-                base(p => p.Id == id)
-            {
-                AddIncludeExpr(p => p.Brand);
-                AddIncludeExpr(p => p.Category);
-            }
-        }
-
-    [4] Helper Method To Build The Query
-        internal static class SpecificationEvaluator
-        {
-            internal static IQueryable<TEntity> BuildQuery<TEntity>(IQueryable<TEntity> inputQuery, ISpecification<TEntity> specs)
-                where TEntity : ModelBase
-            {
-                var query = inputQuery;
-
-                if (specs.Criteria is not null)
-                    query = query.Where(specs.Criteria);
-
-                if (specs.Includes?.Count > 0)
-                    query = specs.Includes.Aggregate(query, (currQuery, nextExpr) => currQuery.Include(nextExpr));
-
-
-                return query;
-            }
-        }
-
-    [5] Combine The Specifications With Repository
-        public interface IRepository<TEntity> where TEntity : ModelBase
-        {
-            Task<IReadOnlyList<TEntity>> GetAllAsync(ISpecification<TEntity>? specs);
-        }
-
-        public class Repository<TEntity>(AppDbContext dbContext) : IRepository<TEntity> where TEntity : ModelBase
-        {
-            public async Task<IReadOnlyList<TEntity>> GetAllAsync(ISpecification<TEntity>? specs)
-            {
-                if (specs is null)
-                    return await dbContext.Set<TEntity>()
-                        .AsNoTracking()
-                        .ToListAsync();
-
-                return await SpecificationEvaluator
-                    .BuildQuery(dbContext.Set<TEntity>(), specs)
-                    .AsNoTracking()
-                    .ToListAsync();
-            }
-        }
-
-    [6] Using Specification In Controller
-        [Route("api/[controller]")]
-        [ApiController]
-        public class ProductsController(IUnitOfWork unitOfWork) : ControllerBase
-        {
-            [HttpGet]
-            public async Task<IActionResult> GetAll()
-            {
-                var allProducts = await unitOfWork.Repository<Product>().GetAllAsync(new ProductSpecsWithRelatedData());
-                return Ok(allProducts);
-            }
-        }
-
-*/
-
 // * Filters
 /*
     Allow code to run( before or after) specific stages in the request processing pipeline.
@@ -616,8 +511,9 @@
                 public IActionResult Index() => View();
 */
 
+
 // * Assess Token And Refresh Token
-/*    
+/*
     Assess Token
         -> A short-lived token (e.g., 15 minutes) used to access protected resources.
         -> Sent in the Authorization header as a Bearer token.
@@ -627,4 +523,84 @@
         -> A long-lived token (e.g., 7 days) used to obtain a new assess token without re-authentication.
         -> Sent with the request cookies.
         -> If expired, the user must log in again to get a new assess and refresh token.
+*/
+
+
+// * JWT
+/*
+    JWT (JSON Web Token) is a standard for securely transmitting information 
+    between parties as a JSON object.
+
+    A JWT is composed of three parts:
+        [1] Header
+            Contains metadata about the token, such as the type of token (JWT) and 
+            the signing algorithm used (HS256 or RS256).
+
+            Example:
+            {
+                "alg": "HS256",
+                "typ": "JWT"
+            }
+
+        [2] Payload
+            Contains the claims — statements about a user or token metadata.
+
+            Claims come in 3 types:
+            (1) Registered Claims (standard, recommended)
+                These are predefined by the JWT specification.
+                Examples:
+                    "iss" — issuer (who created the token)
+                    "sub" — subject (user ID)
+                    "aud" — audience (who the token is intended for)
+                    "exp" — expiration time (Unix timestamp)
+                    "nbf" — not before (token not valid before this time)
+                    "iat" — issued at (when token was created)
+                    "jti" — JWT ID (unique identifier for the token)
+
+            (2) Public Claims
+                Custom claims intended to be shared across applications publicly.
+                Must be collision-free (usually use a URI as a namespace).
+                Example:
+                    "https://example.com/groups": ["admin", "editor"]
+
+            (3) Private Claims
+                Custom claims created for use inside your application only.
+                Example:
+                    "role": "Admin"
+                    "tenantId": "company-12"
+
+            Example Payload:
+            {
+                "sub": "123",
+                "name": "Nael",
+                "role": "Admin",
+                "iat": 1732827500,
+                "exp": 1732831100
+            }
+
+        [3] Signature
+            Ensures the token is not modified and confirms who created it.
+
+            The signature is made by:
+                HMACSHA256(
+                    base64UrlEncode(header) + "." + base64UrlEncode(payload),
+                    secretKey
+                )
+
+            This helps the server check that:
+                1. The token was not modified.
+                2. The token was created by someone who has the secret key.
+
+    Token Structure:
+        header.payload.signature (base64url encoded, separated by dots)
+        Example: eyJhbGc...eyJzdWI...SflKxwRJ
+
+    Security Considerations:
+        1. JWTs are signed, not encrypted — anyone can decode and read the payload
+        2. Never store sensitive information (passwords, credit cards) in JWT claims
+        3. Always validate tokens on the server (signature, expiration, issuer, audience)
+        4. Use HTTPS to prevent token interception during transmission
+        5. Store tokens securely on the client (httpOnly cookies preferred over localStorage)
+        6. Set short expiration times and use refresh tokens for extended sessions
+        7. Use strong secret keys (minimum 256 bits for HS256)
 */

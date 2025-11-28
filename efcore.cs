@@ -168,8 +168,8 @@
 
 */
 
-// * Mapping
 
+// * Mapping
 // 🗒️By Convention [DEFAULT]
 /*
     [1] Primary Key
@@ -335,6 +335,7 @@
             Applies configuration from all classes instances that implements IEntityTypeConfiguration that are defined in provided assembly.
 */
 
+
 // * DbContext
 /*
     Each database provider has its own version of DbContext
@@ -394,42 +395,65 @@
 
 */
 
+
 // * Migrations
 /*
-    Install Microsoft.EntityFrameworkCore.Tools Package
-    Allows to
-        1. Manage Migrations
-        2. Scaffold a DbContext and entity types by reverse engineering the schema of a database.
+    Install Microsoft.EntityFrameworkCore.Tools
+    This package internally includes Microsoft.EntityFrameworkCore.Design.
 
-    Commands:
-        Add-Migration: Adds a new migration.
-        Remove-Migration: Removes the last migration (only if it has NOT been applied to the database).
-        Get-Migration: Lists available migrations.
-        Update-Database: Updates the database to the last migration or to a specified migration.
-        Drop-Database: Drops the database.
-        Scaffold-DbContext: Generates a DbContext and entity type classes for a specified database.
+    Where to install it?
+        In the *startup project* (the one that contains Program.cs).
 
-    🗒️What happens when you add the first migration ?
-        [1] EF Core generates a Migrations folder (if it doesn't already exist). This folder contains:
-            1. YYYYMMDDHHMMSS_InitialCreate.cs (Migration File)
+    What does it allow?
+        1. Managing migrations via Package Manager Console.
+        2. Scaffolding a DbContext and entity types by reverse engineering an existing database.
+
+    Commands
+        Add-Migration
+            Adds a new migration.
+
+        Remove-Migration
+            Removes the last migration 
+            (ONLY if it has NOT been applied to the database).
+
+        Get-Migration
+            Lists all available migrations.
+
+        Update-Database
+            Updates the database to the latest migration
+            or to a specified migration.
+
+        Drop-Database
+            Drops the database completely.
+
+        Scaffold-DbContext
+            Generates a DbContext and entity classes from an existing database.
+
+    What happens when you add the FIRST migration?
+        EF Core generates a *Migrations* folder (if it doesn't exist).  
+        It contains:
+            [1] YYYYMMDDHHMMSS_InitialCreate.cs   (Migration File)
                 -> Contains Up() and Down() methods.
                     Up()
-                        Defines the changes EF Core will apply.
-                        To apply: Update-Database
+                        - Defines the changes EF Core will apply to the database.
+                        - Apply using: Update-Database
 
                     Down()
-                        Defines how to undo those changes.
-                        To apply (Reverting): Update-Database "Specific Migration"
-                            ❕To revert the first migration -> Update-Database 0
+                        - Defines how to undo those changes.
+                        - Apply revert: Update-Database "SpecificMigration"
+                        - To revert to BEFORE the first migration: Update-Database 0
 
-            2. MyDbContextModelSnapshot.cs (Snapshot File)
-                Keeps a record of the latest database schema
-                EF Core compares your current model configuration against this snapshot to determine what's changed, then generates the appropriate migration code to update the database schema.
+    [2] MyDbContextModelSnapshot.cs   (Snapshot File)
+        - Records the latest model state.
+        - EF Core uses this snapshot to detect differences between:
+            1. Current model configuration
+            2. Previous migration state
+            Then it generates only the required schema updates.
 
-            ❕EF Core did't modify the database yet. It only prepares the migration.
-
-        
+    Notes:
+        Adding a migration DOES NOT modify the database yet. It only *prepares* the migration files.
 */
+
 
 // * using & try-finally
 /*
@@ -463,6 +487,7 @@
             }
 
 */
+
 
 // * Entry State
 /*
@@ -536,6 +561,7 @@
                 var trackedUsers = context.Users.AsTracking().ToList();
 
 */
+
 
 // * Relationships
 // 🗒️[1] One-to-Many (1:M)
@@ -628,7 +654,6 @@
 
 */
 
-
 // 🗒️[2] Many-to-Many (M:M)
 /*
     🗒️By Convention
@@ -720,6 +745,7 @@
             }
 */
 
+
 // * Loading Navigation Property Strategies
 /*
     By default, EF Core will not automatically load navigation properties (related entities).
@@ -770,6 +796,7 @@
 
             
 */
+
 
 // * Mapping View 
 /*
@@ -833,6 +860,7 @@
         var result = context.AllDepartmentsWithItsEmployees.ToList();
 
 */
+
 
 // * Raw SQL Queries
 /*

@@ -973,49 +973,6 @@
 
 */
 
-// * Sending Data between requests [TempData]
-/*
-    🗒️TempData Overview:
-        -> Used to send data between requests (e.g., from one action to another).
-        -> Data is stored in:
-            1. Client via Cookies (default)
-            2. Server via Session (if configured)
-                AddControllerWithViews().AddSessionStateTempDataProvider()
-
-        -> Type: TempDataDictionary TempData { get; set; }; -> Implements IDictionary<string, object?>.
-
-        -> The stored data persists until:
-            1. It is read.
-            2. The session ends (20 minutes from the last interaction "Default").
-            3. The data is explicitly removed.
-
-            Example:
-                TempData["Message"] = "Data saved successfully!";
-                return RedirectToAction("Index");
-
-                In the Index action, you can access it using:
-                string message = TempData["Message"] as string; // Type casting needed
-
-
-    🗒️Methods:
-        1. Keep()
-            -> Marks the key/keys for retention.
-            Example:
-                TempData.Keep("Message"); // Keeps the "Message" for the next request.
-
-        2. Peek()
-            -> Retrieves the value without marking key for deletion.
-            Example:
-                string message = TempData.Peek("Message") as string; // Type casting needed
-
-        3. Remove()
-            -> Marks the key for deletion.
-            Example:
-                TempData.Remove("Message"); // Removes the "Message" from TempData
-
-        TempData["key"]
-            -> Key will be marked for deletion
-*/
 
 // * Sending Data Between Requests [TempData]
 /*
@@ -1289,7 +1246,6 @@
 
 // * File Manager Service
 /*
-
     public interface IFileManager
     {
         Task<string?> UploadFileAsync(IFormFile? file, string folder);
